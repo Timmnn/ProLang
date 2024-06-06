@@ -1,0 +1,17 @@
+export enum TokenType {
+   PLUS = "PLUS",
+   MINUS = "MINUS",
+   MULTIPLY = "MULTIPLY",
+   DIVIDE = "DIVIDE",
+   NUMBER = "NUMBER",
+   LPAREN = "LPAREN",
+   RPAREN = "RPAREN",
+   IDENTIFIER = "IDENTIFIER",
+   NEWLINE = "NEWLINE",
+   STRING = "STRING",
+   COMMA = "COMMA",
+   LBRA = "LBRA",
+   RBRA = "RBRA",
+   COMPARISON = "COMPARISON",
+   IF = "IF",
+}

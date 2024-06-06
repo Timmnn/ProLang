@@ -1,0 +1,17 @@
+{
+   "devDependencies": {
+      "@types/node": "^20.12.12",
+      "antlr4ts-cli": "^0.5.0-alpha.4"
+   },
+   "scripts": {
+      "antlr4ts": "npx antlr4ts -visitor Expr.g4"
+   },
+   "dependencies": {
+      "antlr4": "^4.13.1-patch-1",
+      "antlr4ts": "^0.5.0-alpha.4",
+      "chalk": "^5.3.0",
+      "cli-color": "^2.0.4",
+      "jsdom": "^24.1.0",
+      "jstoxml": "^5.0.1"
+   }
+}

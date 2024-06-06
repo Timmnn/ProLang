@@ -1,0 +1,6 @@
+void function(x: string) {
+   printf(x)
+}
+
+function("a")
+function("b")

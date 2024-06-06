@@ -1,0 +1,14 @@
+node_modules
+.vscode
+
+**/*.o
+**/*.ll
+**/*.s
+**/*.bin
+
+.DS_Store
+
+
+.antlr
+
+antlr4/

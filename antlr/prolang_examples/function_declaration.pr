@@ -1,0 +1,6 @@
+void function() {
+   printf("helloworld")
+}
+
+function()
+function()
