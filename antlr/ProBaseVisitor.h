@@ -19,7 +19,19 @@ public:
     return visitChildren(ctx);
   }
 
+  virtual std::any visitArray_access(ProParser::Array_accessContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
   virtual std::any visitFunction_declaration(ProParser::Function_declarationContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
+  virtual std::any visitParameter(ProParser::ParameterContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
+  virtual std::any visitParameter_list(ProParser::Parameter_listContext *ctx) override {
     return visitChildren(ctx);
   }
 
@@ -39,15 +51,23 @@ public:
     return visitChildren(ctx);
   }
 
+  virtual std::any visitReturn_statement(ProParser::Return_statementContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
+  virtual std::any visitCast(ProParser::CastContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
   virtual std::any visitFunction_call(ProParser::Function_callContext *ctx) override {
     return visitChildren(ctx);
   }
 
-  virtual std::any visitArray_construction(ProParser::Array_constructionContext *ctx) override {
+  virtual std::any visitBlock(ProParser::BlockContext *ctx) override {
     return visitChildren(ctx);
   }
 
-  virtual std::any visitBlock(ProParser::BlockContext *ctx) override {
+  virtual std::any visitArray_construction(ProParser::Array_constructionContext *ctx) override {
     return visitChildren(ctx);
   }
 

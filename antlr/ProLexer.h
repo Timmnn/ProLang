@@ -13,8 +13,8 @@ class  ProLexer : public antlr4::Lexer {
 public:
   enum {
     T__0 = 1, T__1 = 2, T__2 = 3, T__3 = 4, T__4 = 5, T__5 = 6, T__6 = 7, 
-    T__7 = 8, T__8 = 9, T__9 = 10, T__10 = 11, INT = 12, CHAR = 13, STRING = 14, 
-    ID = 15, ASSIGN = 16, WS = 17, NEWLINE = 18
+    T__7 = 8, T__8 = 9, T__9 = 10, T__10 = 11, T__11 = 12, T__12 = 13, COMMENT = 14, 
+    INT = 15, CHAR = 16, STRING = 17, ID = 18, ASSIGN = 19, WS = 20, NEWLINE = 21
   };
 
   explicit ProLexer(antlr4::CharStream *input);

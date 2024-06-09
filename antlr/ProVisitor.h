@@ -21,7 +21,13 @@ public:
    */
     virtual std::any visitProg(ProParser::ProgContext *context) = 0;
 
+    virtual std::any visitArray_access(ProParser::Array_accessContext *context) = 0;
+
     virtual std::any visitFunction_declaration(ProParser::Function_declarationContext *context) = 0;
+
+    virtual std::any visitParameter(ProParser::ParameterContext *context) = 0;
+
+    virtual std::any visitParameter_list(ProParser::Parameter_listContext *context) = 0;
 
     virtual std::any visitExpr_list(ProParser::Expr_listContext *context) = 0;
 
@@ -31,11 +37,15 @@ public:
 
     virtual std::any visitStatement(ProParser::StatementContext *context) = 0;
 
+    virtual std::any visitReturn_statement(ProParser::Return_statementContext *context) = 0;
+
+    virtual std::any visitCast(ProParser::CastContext *context) = 0;
+
     virtual std::any visitFunction_call(ProParser::Function_callContext *context) = 0;
 
-    virtual std::any visitArray_construction(ProParser::Array_constructionContext *context) = 0;
-
     virtual std::any visitBlock(ProParser::BlockContext *context) = 0;
+
+    virtual std::any visitArray_construction(ProParser::Array_constructionContext *context) = 0;
 
 
 };

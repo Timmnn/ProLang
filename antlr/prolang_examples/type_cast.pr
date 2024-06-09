@@ -1,0 +1,8 @@
+x_int = 41
+
+x_char = (char)x_int
+
+putchar('C')
+putchar(x_char)
+
+// printf(x_string)

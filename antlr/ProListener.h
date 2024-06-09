@@ -17,8 +17,17 @@ public:
   virtual void enterProg(ProParser::ProgContext *ctx) = 0;
   virtual void exitProg(ProParser::ProgContext *ctx) = 0;
 
+  virtual void enterArray_access(ProParser::Array_accessContext *ctx) = 0;
+  virtual void exitArray_access(ProParser::Array_accessContext *ctx) = 0;
+
   virtual void enterFunction_declaration(ProParser::Function_declarationContext *ctx) = 0;
   virtual void exitFunction_declaration(ProParser::Function_declarationContext *ctx) = 0;
+
+  virtual void enterParameter(ProParser::ParameterContext *ctx) = 0;
+  virtual void exitParameter(ProParser::ParameterContext *ctx) = 0;
+
+  virtual void enterParameter_list(ProParser::Parameter_listContext *ctx) = 0;
+  virtual void exitParameter_list(ProParser::Parameter_listContext *ctx) = 0;
 
   virtual void enterExpr_list(ProParser::Expr_listContext *ctx) = 0;
   virtual void exitExpr_list(ProParser::Expr_listContext *ctx) = 0;
@@ -32,14 +41,20 @@ public:
   virtual void enterStatement(ProParser::StatementContext *ctx) = 0;
   virtual void exitStatement(ProParser::StatementContext *ctx) = 0;
 
+  virtual void enterReturn_statement(ProParser::Return_statementContext *ctx) = 0;
+  virtual void exitReturn_statement(ProParser::Return_statementContext *ctx) = 0;
+
+  virtual void enterCast(ProParser::CastContext *ctx) = 0;
+  virtual void exitCast(ProParser::CastContext *ctx) = 0;
+
   virtual void enterFunction_call(ProParser::Function_callContext *ctx) = 0;
   virtual void exitFunction_call(ProParser::Function_callContext *ctx) = 0;
 
-  virtual void enterArray_construction(ProParser::Array_constructionContext *ctx) = 0;
-  virtual void exitArray_construction(ProParser::Array_constructionContext *ctx) = 0;
-
   virtual void enterBlock(ProParser::BlockContext *ctx) = 0;
   virtual void exitBlock(ProParser::BlockContext *ctx) = 0;
+
+  virtual void enterArray_construction(ProParser::Array_constructionContext *ctx) = 0;
+  virtual void exitArray_construction(ProParser::Array_constructionContext *ctx) = 0;
 
 
 };

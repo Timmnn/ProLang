@@ -11,6 +11,16 @@
 using namespace std;
 using namespace antlr4;
 
+struct Param {
+  std::string name;
+  llvm::Type *type;
+};
+
+template <class C, typename T>
+bool contains(C &&c, T e) {
+  return find(begin(c), end(c), e) != end(c);
+};
+
 class IRGenerator : public ProBaseVisitor {
   llvm::LLVMContext context;
   llvm::IRBuilder<> builder;
@@ -32,21 +42,17 @@ class IRGenerator : public ProBaseVisitor {
         llvm::BasicBlock::Create(this->context, "entry", mainFunc);
     // Set the insertion point to the entry block
     builder.SetInsertPoint(entryBlock);
+
     // Visit all children of the program node
-    cout << "DBG_F Visiting program" << endl;
     visitChildren(ctx);
 
-    cout << "DBG_F Creating return instruction" << endl;
     // Create a return instruction
     builder.CreateRetVoid();
-
-    cout << "RET6\n";
 
     return nullptr;
   }
 
   virtual antlrcpp::Any visitExpr(ProParser::ExprContext *ctx) override {
-    cout << "Visiting expression\n";
     // Check if the expression is an integer
     if (ctx->INT() != nullptr) {
       return visitIntExpr(ctx);
@@ -64,22 +70,119 @@ class IRGenerator : public ProBaseVisitor {
 
     // Check if the expression is an char
     if (ctx->CHAR() != nullptr) {
-      cout << "Visiting char expression\n";
       return visitCharExpr(ctx);
     }
 
     // Check if the expression is a string
     if (ctx->STRING() != nullptr) {
-      cout << "Visiting string expression\n";
       return visitStringExpr(ctx);
     }
 
     if (ctx->function_call() != nullptr) {
-      cout << "DBG_F1\n";
       return visitFunction_call(ctx->function_call());
     }
 
-    throw std::runtime_error("Expression type not handled");
+    // is calculation (when 2nd child is in ['+', '-', '*', '/'])
+    if (ctx->children.size() == 3 &&
+        contains<std::vector<std::string>, std::string>(
+            {"+", "-", "*", "/"}, ctx->children[1]->getText())) {
+      return visitCalculationExpression(ctx);
+    }
+
+    if (ctx->cast() != nullptr) {
+      return visitCast(ctx->cast());
+    }
+
+    if (ctx->array_access() != nullptr) {
+      return visitArray_access(ctx->array_access());
+    }
+
+    throw std::runtime_error("Expression type not handled " + ctx->getText());
+    return nullptr;
+  }
+
+  antlrcpp::Any visitArray_access(ProParser::Array_accessContext *ctx) {
+    const std::string varName = ctx->ID()->getText();
+    const std::string index = ctx->INT()->getText();
+
+    llvm::Value *value = namedValues["main"][varName].value;
+
+    llvm::Type *t = value->getType();
+
+    llvm::Value *indexValue =
+        llvm::ConstantInt::get(context, llvm::APInt(32, 0));
+
+    llvm::Value *gep = builder.CreateGEP(t, value, indexValue);
+
+    llvm::Value *loadInst = builder.CreateLoad(t, gep, "array");
+
+    return value;
+  }
+
+  void printValueTypes(llvm::Value *value) {
+    llvm::Type::TypeID typeID = value->getType()->getTypeID();
+
+    std::string typeName;
+    switch (typeID) {
+      case llvm::Type::VoidTyID:
+        typeName = "void";
+        break;
+      case llvm::Type::HalfTyID:
+        typeName = "half";
+        break;
+      case llvm::Type::FloatTyID:
+        typeName = "float";
+        break;
+      case llvm::Type::DoubleTyID:
+        typeName = "double";
+        break;
+      case llvm::Type::X86_FP80TyID:
+        typeName = "x86_fp80";
+        break;
+      case llvm::Type::FP128TyID:
+        typeName = "fp128";
+        break;
+      case llvm::Type::PPC_FP128TyID:
+        typeName = "ppc_fp128";
+        break;
+      case llvm::Type::IntegerTyID:
+        typeName = "integer";
+        break;
+      // Add more cases as needed...
+      default:
+        typeName = "unknown";
+    }
+
+    std::cout << "value type: " << typeName << std::endl;
+  }
+
+  antlrcpp::Any visitCast(ProParser::CastContext *ctx) override {
+    throw std::runtime_error("Cast not implemented");
+  }
+
+  antlrcpp::Any visitCalculationExpression(ProParser::ExprContext *ctx) {
+    llvm::Value *lhs = std::any_cast<llvm::Value *>(visitExpr(ctx->expr(0)));
+    llvm::Value *rhs = std::any_cast<llvm::Value *>(visitExpr(ctx->expr(1)));
+
+    std::string op = ctx->children[1]->getText();
+
+    if (op == "+") {
+      return builder.CreateAdd(lhs, rhs);
+    }
+
+    if (op == "-") {
+      return builder.CreateSub(lhs, rhs);
+    }
+
+    if (op == "*") {
+      return builder.CreateMul(lhs, rhs);
+    }
+
+    if (op == "/") {
+      return builder.CreateSDiv(lhs, rhs);
+    }
+
+    throw std::runtime_error("Operator not handled");
     return nullptr;
   }
 
@@ -97,7 +200,24 @@ class IRGenerator : public ProBaseVisitor {
       return visitFunction_declaration(ctx->function_declaration());
     }
 
+    if (ctx->return_statement() != nullptr) {
+      return visitReturn_statement(ctx->return_statement());
+    }
+
     throw std::runtime_error("Statement type not handled");
+    return nullptr;
+  }
+
+  virtual antlrcpp::Any visitReturn_statement(
+      ProParser::Return_statementContext *ctx) override {
+    llvm::Value *value = nullptr;
+
+    if (ctx->expr() != nullptr) {
+      value = std::any_cast<llvm::Value *>(visitExpr(ctx->expr()));
+    }
+
+    builder.CreateRet(value);
+
     return nullptr;
   }
 
@@ -197,7 +317,6 @@ class IRGenerator : public ProBaseVisitor {
       args = std::any_cast<std::vector<llvm::Value *>>(
           visitExpr_list(ctx->expr_list()));
     } else {
-      cout << "EXPR_LIST is null\n";
     }
 
     // Get the function name
@@ -222,23 +341,92 @@ class IRGenerator : public ProBaseVisitor {
     return result;
   }
 
+  virtual antlrcpp::Any visitParameter_list(
+      ProParser::Parameter_listContext *ctx) override {
+    std::vector<Param> paramList;
+
+    // one parametter_list can have multiple parameters
+    for (auto parameter : ctx->parameter()) {
+      Param param = std::any_cast<Param>(visitParameter(parameter));
+      paramList.push_back(param);
+    }
+
+    return paramList;
+  }
+
+  virtual antlrcpp::Any visitParameter(
+      ProParser::ParameterContext *ctx) override {
+    // get current block
+    llvm::BasicBlock *currentBlock = builder.GetInsertBlock();
+
+    // Get the parameter name
+    std::string name = ctx->ID(0)->getSymbol()->getText();
+
+    std::string type = ctx->ID(1)->getSymbol()->getText();
+
+    llvm::Type *paramType;
+
+    if (type == "int") {
+      paramType = llvm::Type::getInt32Ty(context);
+    } else if (type == "char") {
+      paramType = llvm::Type::getInt8Ty(context);
+    }
+    if (type == "string") {
+      paramType = llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(context));
+    }
+
+    return Param{name, paramType};
+  }
+
   virtual antlrcpp::Any visitFunction_declaration(
       ProParser::Function_declarationContext *ctx) override {
-    cout << "Visiting function declaration\n";
-
     // Get return type from first token
     std::string returnType = ctx->ID(0)->getSymbol()->getText();
 
-    cout << "returnType: " << returnType << endl;
-
     std::string funcName = ctx->ID(1)->getSymbol()->getText();
+
+    std::vector<Param> paramList = std::any_cast<std::vector<Param>>(
+        visitParameter_list(ctx->parameter_list()));
+
+    std::vector<llvm::Type *> paramTypes = {};
+
+    for (auto param : paramList) {
+      paramTypes.push_back(param.type);
+    }
+
+    // Create a new basic block for the function
+    string returnTypeName = ctx->ID(0)->getSymbol()->getText();
+
+    llvm::Type *returnTypeTy;
+
+    if (returnTypeName == "int") {
+      returnTypeTy = llvm::Type::getInt32Ty(context);
+    } else if (returnTypeName == "char") {
+      returnTypeTy = llvm::Type::getInt8Ty(context);
+    } else if (returnTypeName == "void") {
+      returnTypeTy = llvm::Type::getVoidTy(context);
+    } else {
+      throw std::runtime_error("Return type not handled");
+    }
+
+    llvm::FunctionType *funcType =
+        llvm::FunctionType::get(returnTypeTy,  // Return type
+                                paramTypes,    // Parameter types
+                                false  // Whether the function is variadic
+        );
 
     // create new block from function body
     llvm::Function *function = llvm::Function::Create(
-        llvm::FunctionType::get(llvm::Type::getVoidTy(context), false),
-        llvm::Function::ExternalLinkage, funcName, module.get());
+        funcType, llvm::Function::ExternalLinkage, funcName, module.get());
 
-    // Create a new basic block for the function
+    // name the arguments
+    llvm::Function::arg_iterator argsValues = function->arg_begin();
+    for (auto &param : paramList) {
+      llvm::Value *arg = argsValues++;
+      arg->setName(param.name);
+      namedValues[funcName][param.name] = {(llvm::AllocaInst *)arg, true};
+    }
+
     llvm::BasicBlock *basicBlock =
         llvm::BasicBlock::Create(context, funcName, function);
 
@@ -249,10 +437,20 @@ class IRGenerator : public ProBaseVisitor {
     builder.SetInsertPoint(basicBlock);
 
     // Visit the function's body
+
     visitBlock(ctx->block());
 
     // Add a return statement at the end of the function
-    builder.CreateRetVoid();
+
+    if (returnTypeName == "int") {
+      builder.CreateRet(llvm::ConstantInt::get(context, llvm::APInt(32, 0)));
+    } else if (returnTypeName == "char") {
+      builder.CreateRet(llvm::ConstantInt::get(context, llvm::APInt(8, 0)));
+    } else if (returnTypeName == "void") {
+      builder.CreateRetVoid();
+    } else {
+      throw std::runtime_error("Return type not handled");
+    }
 
     // Restore the previous insertion point
     builder.SetInsertPoint(currentBlock);
@@ -265,10 +463,12 @@ class IRGenerator : public ProBaseVisitor {
   }
 
   virtual antlrcpp::Any visitBlock(ProParser::BlockContext *ctx) override {
-    cout << "Visiting block\n";
+    // store previous insertion point
+
     for (auto statement : ctx->statement()) {
       visitStatement(statement);
     }
+
     return nullptr;
   }
 
@@ -291,6 +491,7 @@ class IRGenerator : public ProBaseVisitor {
   virtual antlrcpp::Any visitArray_construction(
       ProParser::Array_constructionContext *ctx) override {
     std::vector<llvm::Value *> items =
+        //
         std::any_cast<std::vector<llvm::Value *>>(
             visitExpr_list(ctx->expr_list()));
 
@@ -299,6 +500,7 @@ class IRGenerator : public ProBaseVisitor {
     llvm::ArrayType *arrayTy = llvm::ArrayType::get(i32Ty, items.size());
 
     // Create an alloca instruction
+
     llvm::AllocaInst *allocaInst =
         builder.CreateAlloca(arrayTy, nullptr, "array");
 
@@ -309,7 +511,6 @@ class IRGenerator : public ProBaseVisitor {
       builder.CreateStore(items[i], gep);
     }
 
-    // Load the array
     llvm::Value *value = builder.CreateLoad(arrayTy, allocaInst, "array");
 
     return value;
@@ -317,94 +518,113 @@ class IRGenerator : public ProBaseVisitor {
 
   virtual antlrcpp::Any visitExpr_list(
       ProParser::Expr_listContext *ctx) override {
-    cout << "DBG_A3\n";
-
     // llvm::Value vector
     std::vector<llvm::Value *> values;
 
     for (auto expr : ctx->expr()) {
       antlrcpp::Any result = visitExpr(expr);
       llvm::Value *value = std::any_cast<llvm::Value *>(result);
-      cout << "DBG_A3.1\n";
-      cout << "Value: " << value << endl;
 
       values.push_back(value);
     }
-    cout << "DBG_A4\n";
-
-    cout << "Values size: " << values.size() << endl;
-    cout << "Values[0]: " << values[0] << endl;
 
     return values;
+  }
+
+  llvm::Function *getCurrentBlock() {
+    llvm::Function *function = builder.GetInsertBlock()->getParent();
+    return function;
+  }
+
+  string getFunctionName() {
+    llvm::Function *function = getCurrentBlock();
+    std::string functionName = static_cast<std::string>(function->getName());
+    return functionName;
   }
 
   antlrcpp::Any visitIdExpr(ProParser::ExprContext *ctx) {
     std::string varName = ctx->ID()->getSymbol()->getText();
 
-    // Look up the variable name in the map
-    if (namedValues.count(varName)) {
-      llvm::AllocaInst *allocaInst = namedValues[varName];
+    if (namedValues.size() == 0) {
+      throw std::runtime_error("No blocks found");
+      return nullptr;
+    }
 
-      // Load the value from the alloca instruction
+    string functionName = getFunctionName();
 
-      llvm::Value *loadInst =
-          builder.CreateLoad(allocaInst->getAllocatedType(),
-                             (llvm::Value *)allocaInst, llvm::Twine(varName));
+    if (namedValues[functionName].count(varName)) {
+      llvm::Value *value = namedValues[functionName][varName].value;
 
-      cout << "DBG_B1 Load inst: " << loadInst << endl;
+      llvm::Type *t = value->getType();
 
-      cout << "RET2\n";
+      llvm::Twine twine = llvm::Twine(varName);
+      if (!builder.GetInsertBlock()) {
+        throw std::runtime_error("builder is not properly initialized");
+      }
+
+      llvm::Value *loadInst = builder.CreateLoad(t, value, twine);
+
       return loadInst;
     } else {
-      // Handle error: variable name not found
       throw std::runtime_error("Variable name not found " + varName);
-      cout << "RET3\n";
       return nullptr;
     }
   }
+
   antlrcpp::Any visitIntExpr(ProParser::ExprContext *ctx) {
     antlr4::tree::TerminalNode *terminalNode = ctx->INT();
 
     Token *token = terminalNode->getSymbol();
     string text = token->getText();
-    int value = std::stoi(text);
+    int value = stoi(text);
 
-    llvm::ConstantInt *constantInt =
+    llvm::ConstantInt *pointer =
         llvm::ConstantInt::get(context, llvm::APInt(32, value));
 
-    llvm::ConstantInt *resultInt =
-        std::any_cast<llvm::ConstantInt *>(constantInt);
-    llvm::Value *resultVal = static_cast<llvm::Value *>(resultInt);
-    return resultVal;
+    llvm::Value *pointer_value = static_cast<llvm::Value *>(pointer);
+    return pointer_value;
   }
 
-  std::map<std::string, llvm::AllocaInst *> namedValues;
+  struct NamedValue {
+    llvm::Value *value;
+    bool isFunctionParameter;
+  };
+
+  // map of maps to store variables namedValues[blockName][varName]
+  std::map<std::string, std::map<std::string, NamedValue>> namedValues = {
+      {"main", {}}};
   std::map<std::string, llvm::Function *> functionProtos;
 
   virtual antlrcpp::Any visitAssignment(
       ProParser::AssignmentContext *ctx) override {
-    // Parse the expression
+    // Evaluate the right-hand side of the assignment
+
+    // print the expression
+
     antlrcpp::Any result = visitExpr(ctx->expr());
-    // Get the right-hand side of the assignment (value)
     llvm::Value *rhs = std::any_cast<llvm::Value *>(result);
 
-    // Get the left-hand side of the assignment (variable name)
-    // its null initially because we have to check if the variable already
-    // exists
+    // Check rhs type
+
+    // Get the variable name
     std::string varName = ctx->ID()->getText();
-    llvm::AllocaInst *lhs = nullptr;
+    llvm::Value *lhs = nullptr;
+
+    // Get the current function
+    llvm::Function *function = getCurrentBlock();
+    std::string functionName = static_cast<std::string>(function->getName());
 
     // Check if the variable already exists
-    if (namedValues.count(varName)) {
-      lhs = namedValues[varName];
+    if (namedValues[functionName].count(varName)) {
+      lhs = namedValues[functionName][varName].value;
     } else {
-      // Make i32 type and i32 pointer type
-      llvm::Type *i32Ty = llvm::Type::getInt32Ty(context);
-      llvm::Type *i32PtrTy = llvm::PointerType::getUnqual(i32Ty);
+      // Get the type of the variable
+
+      llvm::Type *type = rhs->getType();
 
       // Store the variable in the map and create an alloca instruction
-      lhs = builder.CreateAlloca(i32PtrTy, nullptr, varName);
-      namedValues[varName] = lhs;
+      lhs = builder.CreateAlloca(type, nullptr, varName);
+      namedValues[functionName][varName] = {lhs, false};
     }
 
     // Create a store instruction
@@ -418,7 +638,7 @@ class IRGenerator : public ProBaseVisitor {
 
 int main(int argc, const char *argv[]) {
   // read file
-  std::ifstream t("./prolang_examples/function_declaration.pr");
+  std::ifstream t("./prolang_examples/array_indexing.pr");
   std::string input_str((std::istreambuf_iterator<char>(t)),
                         std::istreambuf_iterator<char>());
 

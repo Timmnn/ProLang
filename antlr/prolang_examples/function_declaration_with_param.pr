@@ -1,6 +1,15 @@
-void function(x: string) {
+void prnt(x: string) {
    printf(x)
 }
 
-function("a")
-function("b")
+int add(a: int, b: int){
+   return a+b
+}
+
+
+
+prnt("a")
+prnt("b")
+
+
+add(1,5)
